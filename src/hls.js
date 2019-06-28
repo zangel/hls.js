@@ -21,6 +21,9 @@ import { hlsDefaultConfig } from './config';
 import HlsEvents from './events';
 
 import { Observer } from './observer';
+import LLStreamController from './utils/ll-stream-controller';
+import LLPlaylistLoader from './utils/ll-playlist-loader';
+import LLFragmentLoader from './utils/ll-fragment-loader';
 
 /**
  * @module Hls
@@ -28,6 +31,27 @@ import { Observer } from './observer';
  * @constructor
  */
 export default class Hls extends Observer {
+  /**
+   * @type {LLStreamController}
+   */
+  static get LLStreamController () {
+    return LLStreamController;
+  }
+
+  /**
+   * @type {LLPlaylistLoader}
+   */
+  static get LLPlaylistLoader () {
+    return LLPlaylistLoader;
+  }
+
+  /**
+   * @type {LLFragmentLoader}
+   */
+  static get LLFragmentLoader () {
+    return LLFragmentLoader;
+  }
+
   /**
    * @type {string}
    */
@@ -108,6 +132,19 @@ export default class Hls extends Observer {
     if (config.liveMaxLatencyDuration !== void 0 && (config.liveMaxLatencyDuration <= config.liveSyncDuration || config.liveSyncDuration === void 0)) {
       throw new Error('Illegal hls.js config: "liveMaxLatencyDuration" must be gt "liveSyncDuration"');
     }
+
+    if (config.llEnabled) {
+      var llStreamController = new LLStreamController(config);
+      config.pLoader = function (config) {
+        return new LLPlaylistLoader(config, llStreamController);
+      }
+
+      config.fLoader = function (config) {
+        return new LLFragmentLoader(config, llStreamController);
+      }
+      this.llStreamController = llStreamController;
+    }
+    
 
     enableLogs(config.debug);
     this.config = config;
@@ -289,6 +326,9 @@ export default class Hls extends Observer {
    */
   stopLoad () {
     logger.log('stopLoad');
+    if (this.llStreamController) {
+      this.llStreamController.stop();
+    }
     this.networkControllers.forEach(controller => {
       controller.stopLoad();
     });
